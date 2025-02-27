@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import time
 from random import uniform
 from dotenv import load_dotenv
+import argparse
 
 load_dotenv()
 
@@ -12,10 +13,10 @@ lectures = {
     "system_analysis_and_design": range(156514, 156558),
     "computer_network_and_security": range(155902, 155946),
     "computer_graphics": range(155953, 155997),
-    "environmental_protection": range(208942, 208986),
-    "professional_responsibilities_and_ethics": range(212257, 212301),
     "visual_based_programming": range(156616, 156660),
     "web_programming": range(156667, 156711),
+    "environmental_protection": range(208942, 208986),
+    "professional_responsibilities_and_ethics": range(212257, 212301)
 }
 
 USERNAME = os.getenv("AREL_UZEM_USERNAME")
@@ -54,7 +55,8 @@ def login(session, username, password):
         response = session.post(LOGIN_URL, data=login_data, headers=headers, allow_redirects=True)
         response.raise_for_status()
 
-        if "Giriş yapmadınız." not in response.text:  # Adjust this check
+        # Check for successful login (you might need to adapt this based on the page content)
+        if "Giriş yapmadınız" not in response.text:  # Adjust this check
             print("Login successful!")
             return True
         else:
@@ -65,7 +67,7 @@ def login(session, username, password):
         print(f"Login error: {e}")
         return False
 
-def check_and_download_files(session, lecture_name, folder_id):
+def check_and_download_files(session, lecture_name, folder_id, week=None):
     """Checks for and downloads files from the specified folder."""
     url = f"https://uzem.arel.edu.tr/mod/folder/view.php?id={folder_id}"
     try:
@@ -84,8 +86,12 @@ def check_and_download_files(session, lecture_name, folder_id):
         print(f"No files found in {lecture_name} (Folder {folder_id}) using simplified selector")
         return
 
-    # Prepare the folder path but don't create it yet
-    lecture_folder = os.path.join(lecture_name, f"folder_{folder_id}")
+    # Prepare the folder path
+    if week:
+        lecture_folder = os.path.join(lecture_name, f"week_{week}", f"folder_{folder_id}")
+    else:
+        lecture_folder = os.path.join(lecture_name, "all_weeks", f"folder_{folder_id}") # all weeks folder
+
     new_files = []
 
     for link in file_links:
@@ -129,15 +135,80 @@ def download_file(session, url, file_path):  # Take session as argument
     except requests.exceptions.RequestException as e:
         print(f"Error downloading {file_path}: {e}")
 
-if __name__ == "__main__":
+
+def main():
+    parser = argparse.ArgumentParser(description="Download files from Arel UZEM.")
+    parser.add_argument("--lecture", help="Specify the lecture to download (e.g., system_programming)")
+    parser.add_argument("--week", type=int, help="Specify the week to download (e.g., 3)")
+    parser.add_argument("--week_range", help="Specify a week range to download (e.g., 1-5)")
+    args = parser.parse_args()
+
+    # Ensure that the username and password are set
+    if not USERNAME or not PASSWORD:
+        print("Error: AREL_UZEM_USERNAME and AREL_UZEM_PASSWORD environment variables must be set in .env file.")
+        exit()
+
     # Create a session to persist cookies across requests
     with requests.Session() as session:
         # Log in
         if login(session, USERNAME, PASSWORD):
-            # Loop through lectures and folders after successful login
-            for lecture_name, folder_range in lectures.items():
-                for folder_id in folder_range:
-                    check_and_download_files(session, lecture_name, folder_id)
-                    time.sleep(uniform(1, 3))
+            # Determine which lectures and folders to process
+            if args.lecture:
+                if args.lecture in lectures:
+                    selected_lectures = {args.lecture: lectures[args.lecture]}
+                else:
+                    print(f"Error: Lecture '{args.lecture}' not found in the list.")
+                    exit()
+            else:
+                selected_lectures = lectures
+
+            # Process lectures and folders
+            for lecture_name, folder_range in selected_lectures.items():
+                # Week range logic
+                if args.week_range:
+                    try:
+                        start_week, end_week = map(int, args.week_range.split('-'))
+                        if start_week > end_week or start_week < 1:
+                            raise ValueError("Invalid week range.")
+                    except ValueError:
+                        print("Error: Invalid week range format. Use 'start-end'.")
+                        continue
+
+                    for week in range(start_week, end_week + 1):
+                        start_folder = folder_range.start + (week - 1) * 3  # Adjust starting folder based on week
+                        end_folder = start_folder + 3
+
+                        week_folders = range(start_folder, min(end_folder, folder_range.stop)) # end folder should not exceed the folder_range.stop
+                        if not week_folders:
+                            print(f"Week {week} is out of range for lecture {lecture_name}")
+                            continue
+
+                        for folder_id in week_folders:
+                            check_and_download_files(session, lecture_name, folder_id, week)
+                            time.sleep(uniform(1, 3))
+
+                # Single week logic
+                elif args.week:
+                    start_folder = folder_range.start + (args.week - 1) * 3  # Adjust starting folder based on week
+                    end_folder = start_folder + 3
+
+                    week_folders = range(start_folder, min(end_folder, folder_range.stop)) # end folder should not exceed the folder_range.stop
+                    if not week_folders:
+                        print(f"Week {args.week} is out of range for lecture {lecture_name}")
+                        continue  # skip this lecture/week combination
+
+                    for folder_id in week_folders:
+                        check_and_download_files(session, lecture_name, folder_id, args.week)
+                        time.sleep(uniform(1, 3))
+
+                # No week specified, process all folders
+                else:
+                    for folder_id in folder_range:
+                        check_and_download_files(session, lecture_name, folder_id)
+                        time.sleep(uniform(1, 3))
+
         else:
             print("Login failed.  Exiting.")
+
+if __name__ == "__main__":
+    main()
