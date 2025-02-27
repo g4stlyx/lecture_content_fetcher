@@ -1,9 +1,9 @@
-# lecture_content_checker
+# lecture_content_fetcher
 
 It goes to arel uzem website, logs in, checks courses for downloadable lecture contents. if sees any new content, downloads them to the related folder.
 
 TODO:
-* check homeworks too if possible (maybe going to the course pages and check for new links)
+* check homeworks too if possible (go to the course pages and check for new links??)
 
 ## How To Use
 
