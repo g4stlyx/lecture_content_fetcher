@@ -9,7 +9,7 @@ import argparse
 load_dotenv()
 
 lectures = {
-    "system_programming": range(156565, 156575),
+    "system_programming": range(156565, 156609),
     "system_analysis_and_design": range(156514, 156558),
     "computer_network_and_security": range(155902, 155946),
     "computer_graphics": range(155953, 155997),
