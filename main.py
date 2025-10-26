@@ -130,11 +130,8 @@ def check_and_download_files(session, lecture_name, folder_id, week=None):
         print(f"No files found in {lecture_name} (Folder {folder_id}) using simplified selector")
         return
 
-    # Prepare the folder path
-    if week:
-        lecture_folder = os.path.join(OUTPUT_FOLDER, lecture_name, f"week_{week}", f"folder_{folder_id}")
-    else:
-        lecture_folder = os.path.join(OUTPUT_FOLDER, lecture_name, "all_weeks", f"folder_{folder_id}") # all weeks folder
+    # Prepare the folder path - always use week structure
+    lecture_folder = os.path.join(OUTPUT_FOLDER, lecture_name, f"week_{week}", f"folder_{folder_id}")
 
     new_files = []
 
@@ -250,6 +247,9 @@ def fetch_resource_file(session, lecture_name, resource_id, base_folder, link_el
         response = session.get(resource_url, headers=headers, allow_redirects=True)
         response.raise_for_status()
         
+        # Parse the response to find download links
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
         # Try to get filename from Content-Disposition header
         filename = None
         if 'Content-Disposition' in response.headers:
@@ -260,7 +260,6 @@ def fetch_resource_file(session, lecture_name, resource_id, base_folder, link_el
         
         # If no filename from header, try to get from the page or link text
         if not filename:
-            soup = BeautifulSoup(response.text, 'html.parser')
             download_link = soup.find('a', href=lambda href: href and 'forcedownload=1' in href)
             if download_link:
                 filename = download_link.text.strip()
@@ -446,10 +445,16 @@ def main():
                         check_and_download_files(session, lecture_name, folder_id, args.week)
                         time.sleep(uniform(1, 3))
 
-                # No week specified, process all folders
+                # No week specified, process all folders and auto-split by weeks
                 else:
-                    for folder_id in folder_range:
-                        check_and_download_files(session, lecture_name, folder_id)
+                    # Calculate total weeks based on folder range (assuming 3 folders per week)
+                    total_folders = len(folder_range)
+                    folders_per_week = 3
+                    
+                    for idx, folder_id in enumerate(folder_range):
+                        # Calculate which week this folder belongs to
+                        week_number = (idx // folders_per_week) + 1
+                        check_and_download_files(session, lecture_name, folder_id, week_number)
                         time.sleep(uniform(1, 3))
 
         else:
