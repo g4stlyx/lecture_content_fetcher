@@ -1,11 +1,4 @@
 .env
 *.env
 
-/system_programming
-/system_analysis_and_design
-/computer_network_and_security
-/computer_graphics
-/visual_based_programming
-/web_programming
-/environmental_protection
-/professional_responsibilities_and_ethics
+/output/
